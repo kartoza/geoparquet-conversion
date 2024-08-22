@@ -97,8 +97,8 @@ def get_tables_in_schema(schema):
         print(f"Error fetching tables: {e}")
         return []
 
-# Function to export each layer to FlatGeobuf using GeoPandas
-def export_to_flatgeobuf(schema, table, output_dir):
+# Function to export each layer to GeoParquet using GeoPandas
+def export_to_geoparquet(schema, table, output_dir):
     try:
         # Create SQL query to fetch data from the table
         query = f"SELECT * FROM {schema}.{table}"
@@ -107,8 +107,8 @@ def export_to_flatgeobuf(schema, table, output_dir):
         conn_str = f"postgresql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['dbname']}"
         gdf = gpd.read_postgis(query, conn_str, geom_col='geom')
         
-        output_path = os.path.join(output_dir, f"{table}.fgb")
-        gdf.to_file(output_path, driver='FlatGeobuf')
+        output_path = os.path.join(output_dir, f"{table}.parquet")
+        gdf.to_parquet(output_path)
         
         print(f"Successfully exported {schema}.{table} to {output_path}")
     except Exception as e:
@@ -117,9 +117,9 @@ def export_to_flatgeobuf(schema, table, output_dir):
 # Get all tables in the schema
 tables = get_tables_in_schema(schema_name)
 
-# Export each table to FlatGeobuf
+# Export each table to GeoParquet
 for table in tables:
-    export_to_flatgeobuf(schema_name, table, output_directory)
+    export_to_geoparquet(schema_name, table, output_directory)
 
 # Clean up QGIS Application (if running standalone script)
 # app.exitQgis()
