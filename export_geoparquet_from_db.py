@@ -3,6 +3,7 @@ import geopandas as gpd
 from qgis.PyQt.QtWidgets import QDialog, QFormLayout, QLineEdit, QPushButton, QFileDialog, QVBoxLayout, QApplication
 from qgis.PyQt.QtCore import Qt
 from psycopg2 import connect, sql
+import threading
 
 class InputDialog(QDialog):
     def __init__(self, parent=None):
@@ -60,31 +61,8 @@ class InputDialog(QDialog):
             'output_directory': self.output_directory_input.text()
         }
 
-# Initialize QGIS Application (needed if running standalone script)
-# app = QgsApplication([], False)
-# app.initQgis()
-
-# Show input dialog
-qapp = QApplication([])
-dialog = InputDialog()
-if dialog.exec_() == QDialog.Accepted:
-    values = dialog.get_values()
-else:
-    raise SystemExit("Input dialog was canceled or invalid.")
-
-# Define your database connection parameters
-db_params = {
-    'dbname': values['dbname'],
-    'user': values['user'],
-    'password': values['password'],
-    'host': values['host'],
-    'port': values['port']
-}
-schema_name = values['schema_name']
-output_directory = values['output_directory']
-
 # Function to get all tables in the schema
-def get_tables_in_schema(schema):
+def get_tables_in_schema(db_params, schema):
     try:
         conn = connect(**db_params)
         cur = conn.cursor()
@@ -98,7 +76,7 @@ def get_tables_in_schema(schema):
         return []
 
 # Function to export each layer to GeoParquet using GeoPandas
-def export_to_geoparquet(schema, table, output_dir):
+def export_to_geoparquet(db_params, schema, table, output_dir):
     try:
         # Create SQL query to fetch data from the table
         query = f"SELECT * FROM {schema}.{table}"
@@ -114,12 +92,37 @@ def export_to_geoparquet(schema, table, output_dir):
     except Exception as e:
         print(f"Exception during export: {e}")
 
-# Get all tables in the schema
-tables = get_tables_in_schema(schema_name)
+# Thread function to handle long-running tasks
+def run_export(db_params, schema_name, output_directory):
+    # Get all tables in the schema
+    tables = get_tables_in_schema(db_params, schema_name)
 
-# Export each table to GeoParquet
-for table in tables:
-    export_to_geoparquet(schema_name, table, output_directory)
+    # Export each table to GeoParquet
+    for table in tables:
+        export_to_geoparquet(db_params, schema_name, table, output_directory)
 
-# Clean up QGIS Application (if running standalone script)
-# app.exitQgis()
+
+# Show input dialog
+
+dialog = InputDialog()
+if dialog.exec_() == QDialog.Accepted:
+    values = dialog.get_values()
+
+    # Define your database connection parameters
+    db_params = {
+        'dbname': values['dbname'],
+        'user': values['user'],
+        'password': values['password'],
+        'host': values['host'],
+        'port': values['port']
+    }
+    schema_name = values['schema_name']
+    output_directory = values['output_directory']
+
+    # Run the export process in a separate thread
+    export_thread = threading.Thread(target=run_export, args=(db_params, schema_name, output_directory))
+    export_thread.start()
+else:
+    raise SystemExit("Input dialog was canceled or invalid.")
+
+
