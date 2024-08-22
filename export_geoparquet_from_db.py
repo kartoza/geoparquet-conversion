@@ -103,7 +103,6 @@ def run_export(db_params, schema_name, output_directory):
 
 
 # Show input dialog
-
 dialog = InputDialog()
 if dialog.exec_() == QDialog.Accepted:
     values = dialog.get_values()
@@ -123,6 +122,4 @@ if dialog.exec_() == QDialog.Accepted:
     export_thread = threading.Thread(target=run_export, args=(db_params, schema_name, output_directory))
     export_thread.start()
 else:
-    raise SystemExit("Input dialog was canceled or invalid.")
-
-
+    print("Input dialog was canceled or invalid.")
