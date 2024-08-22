@@ -1,6 +1,8 @@
 import geopandas as gpd
 import os
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 def convert_all_shapefiles_to_geoparquet():
     # Open file dialog to select input directory
@@ -15,16 +17,20 @@ def convert_all_shapefiles_to_geoparquet():
         QMessageBox.warning(None, "No Directory Selected", "You must select an output directory.")
         return
 
-    # List all shapefiles in the input directory
-    shapefiles = [f for f in os.listdir(input_dir) if f.lower().endswith('.shp')]
+    # Find all shapefiles in the input directory and subdirectories
+    shapefiles = []
+    for root, dirs, files in os.walk(input_dir):
+        for file in files:
+            if file.lower().endswith('.shp'):
+                shapefiles.append(os.path.join(root, file))
+    
     if not shapefiles:
         QMessageBox.warning(None, "No Shapefiles Found", "No shapefiles found in the selected directory.")
         return
 
     # Process each shapefile
-    for shapefile in shapefiles:
-        shapefile_path = os.path.join(input_dir, shapefile)
-        base_name = os.path.splitext(shapefile)[0]
+    for shapefile_path in shapefiles:
+        base_name = os.path.splitext(os.path.basename(shapefile_path))[0]
         output_file = os.path.join(output_dir, base_name + ".parquet")
 
         try:
@@ -32,11 +38,11 @@ def convert_all_shapefiles_to_geoparquet():
             gdf = gpd.read_file(shapefile_path)
 
             # Write the GeoDataFrame to a GeoParquet file
-            gdf.to_parquet(output_file)
+            gdf.to_parquet(output_file, engine='pyarrow')
 
             QMessageBox.information(None, "Success", f"Shapefile successfully converted to GeoParquet: {output_file}")
         except Exception as e:
-            QMessageBox.critical(None, f"Error with {shapefile}", f"Failed to convert shapefile to GeoParquet: {str(e)}")
+            QMessageBox.critical(None, f"Error with {shapefile_path}", f"Failed to convert shapefile to GeoParquet: {str(e)}")
             continue
 
 # Run the function
