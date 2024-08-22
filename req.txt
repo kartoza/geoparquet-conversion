@@ -1,3 +1,3 @@
 pyarrow
 geopandas
-sqlalchemy
+psycopg2
