@@ -1,8 +1,10 @@
 import geopandas as gpd
 import os
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
+import pyarrow as pa
+import pyarrow.parquet as pq
 
-def convert_shapefiles_to_geojson_and_geoparquet():
+def convert_all_shapefiles_to_geoparquet():
     # Open file dialog to select input directory
     input_dir = QFileDialog.getExistingDirectory(None, "Select Input Directory")
     if not input_dir:
@@ -29,26 +31,19 @@ def convert_shapefiles_to_geojson_and_geoparquet():
     # Process each shapefile
     for shapefile_path in shapefiles:
         base_name = os.path.splitext(os.path.basename(shapefile_path))[0]
-        geojson_file = os.path.join(output_dir, base_name + ".geojson")
-        geoparquet_file = os.path.join(output_dir, base_name + ".parquet")
+        output_file = os.path.join(output_dir, base_name + ".parquet")
 
         try:
             # Read the shapefile into a GeoDataFrame
-            print(f"Processing shapefile: {shapefile_path}")
             gdf = gpd.read_file(shapefile_path)
 
-            # Write the GeoDataFrame to a GeoJSON file
-            gdf.to_file(geojson_file, driver='GeoJSON')
-            print(f"Converted shapefile to GeoJSON: {geojson_file}")
-
             # Write the GeoDataFrame to a GeoParquet file
-            gdf.to_parquet(geoparquet_file, engine='pyarrow')
-            print(f"Converted GeoJSON to GeoParquet: {geoparquet_file}")
+            gdf.to_parquet(output_file, engine='pyarrow')
 
-            QMessageBox.information(None, "Success", f"Shapefile successfully converted to GeoJSON and GeoParquet:\n{geojson_file}\n{geoparquet_file}")
+            QMessageBox.information(None, "Success", f"Shapefile successfully converted to GeoParquet: {output_file}")
         except Exception as e:
-            QMessageBox.critical(None, f"Error with {shapefile_path}", f"Failed to convert shapefile: {str(e)}")
+            QMessageBox.critical(None, f"Error with {shapefile_path}", f"Failed to convert shapefile to GeoParquet: {str(e)}")
             continue
 
 # Run the function
-convert_shapefiles_to_geojson_and_geoparquet()
+convert_all_shapefiles_to_geoparquet()
