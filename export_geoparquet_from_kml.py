@@ -1,13 +1,16 @@
-from qgis.core import QgsApplication
-from qgis.PyQt.QtWidgets import QFileDialog, QMessageBox
+from qgis.core import QgsApplication, QgsCoordinateReferenceSystem
+from qgis.PyQt.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 import geopandas as gpd
 import os
 
-def convert_kml_to_geoparquet(input_kml, output_geoparquet):
+def convert_kml_to_geoparquet(input_kml, output_geoparquet, crs):
     try:
         # Read the KML file into a GeoDataFrame
         gdf = gpd.read_file(input_kml, driver='KML')
         
+        # Reproject the GeoDataFrame to the selected CRS
+        gdf = gdf.to_crs(crs)
+
         # Save the GeoDataFrame to a GeoParquet file
         gdf.to_parquet(output_geoparquet, engine='pyarrow')
     except Exception as e:
@@ -32,16 +35,25 @@ def main():
         QMessageBox.warning(None, "No Directory Selected", "You need to select a directory to save the converted files.")
         return
 
+    # Input dialog to select the CRS
+    crs, ok = QInputDialog.getText(None, "Select CRS", "Enter EPSG code (e.g., 4326 for WGS84):")
+
+    if not ok or not crs:
+        QMessageBox.warning(None, "No CRS Selected", "You need to select a CRS to continue.")
+        return
+
     for kml_file in kml_files:
         # Define output file path
         base_filename = os.path.basename(kml_file)
         output_file = os.path.join(save_directory, os.path.splitext(base_filename)[0] + '.parquet')
 
         try:
-            convert_kml_to_geoparquet(kml_file, output_file)
+            convert_kml_to_geoparquet(kml_file, output_file, f"EPSG:{crs}")
             QMessageBox.information(None, "Conversion Successful", f"{kml_file} converted to {output_file}.")
         except RuntimeError as e:
             QMessageBox.critical(None, "Error", str(e))
 
 
+
 main()
+
