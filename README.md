@@ -3,6 +3,8 @@ This repo is to store scripts for converting kml and shape files to geoparquet f
 
 **Scripts in this repo are meant to be run inside of QGIS and not standalone**
 
+**Please install packages inside of req.txt before running scripts**
+
 ## Convert geoparquet files from database
 
 - Open up QGIS desktop
