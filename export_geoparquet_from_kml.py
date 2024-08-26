@@ -42,6 +42,7 @@ def main():
         QMessageBox.warning(None, "No CRS Selected", "You need to select a CRS to continue.")
         return
 
+    messages = []
     for kml_file in kml_files:
         # Define output file path
         base_filename = os.path.basename(kml_file)
@@ -49,11 +50,12 @@ def main():
 
         try:
             convert_kml_to_geoparquet(kml_file, output_file, f"EPSG:{crs}")
-            QMessageBox.information(None, "Conversion Successful", f"{kml_file} converted to {output_file}.")
+            messages.append(f"{kml_file} converted to {output_file}.")
         except RuntimeError as e:
-            QMessageBox.critical(None, "Error", str(e))
+            messages.append(f"Error converting {kml_file}: {str(e)}")
 
+    # Show all messages in one window
+    QMessageBox.information(None, "Conversion Results", "\n".join(messages))
 
 
 main()
-

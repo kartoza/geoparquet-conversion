@@ -34,6 +34,9 @@ def convert_all_shapefiles_to_geoparquet():
         QMessageBox.warning(None, "No Shapefiles Found", "No shapefiles found in the selected directory.")
         return
 
+    # Collect all messages to display later
+    messages = []
+
     # Process each shapefile
     for shapefile_path in shapefiles:
         base_name = os.path.splitext(os.path.basename(shapefile_path))[0]
@@ -49,10 +52,13 @@ def convert_all_shapefiles_to_geoparquet():
             # Write the GeoDataFrame to a GeoParquet file
             gdf.to_parquet(output_file, engine='pyarrow')
 
-            QMessageBox.information(None, "Success", f"Shapefile successfully converted to GeoParquet: {output_file}")
+            messages.append(f"Success: {shapefile_path} -> {output_file}")
         except Exception as e:
-            QMessageBox.critical(None, f"Error with {shapefile_path}", f"Failed to convert shapefile to GeoParquet: {str(e)}")
+            messages.append(f"Error with {shapefile_path}: {str(e)}")
             continue
+
+    # Display all messages in one window
+    QMessageBox.information(None, "Conversion Results", "\n".join(messages))
 
 # Run the function
 convert_all_shapefiles_to_geoparquet()
