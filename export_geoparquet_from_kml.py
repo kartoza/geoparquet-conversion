@@ -1,18 +1,37 @@
-from qgis.core import QgsApplication, QgsCoordinateReferenceSystem
+from qgis.core import (
+    QgsApplication, QgsCoordinateReferenceSystem, QgsVectorLayer,
+    QgsVectorFileWriter, QgsProject
+)
 from qgis.PyQt.QtWidgets import QFileDialog, QMessageBox, QInputDialog
-import geopandas as gpd
 import os
 
-def convert_kml_to_geoparquet(input_kml, output_geoparquet, crs):
+def convert_kml_to_geoparquet(input_kml, output_geoparquet, crs_epsg):
     try:
-        # Read the KML file into a GeoDataFrame
-        gdf = gpd.read_file(input_kml, driver='KML')
-        
-        # Reproject the GeoDataFrame to the selected CRS
-        gdf = gdf.to_crs(crs)
+        # Load the KML file as a QGIS layer
+        kml_layer = QgsVectorLayer(input_kml, "layer", "ogr")
+        if not kml_layer.isValid():
+            raise RuntimeError(f"Failed to load KML file: {input_kml}")
 
-        # Save the GeoDataFrame to a GeoParquet file
-        gdf.to_parquet(output_geoparquet, engine='pyarrow')
+        # Set the target CRS
+        crs = QgsCoordinateReferenceSystem(crs_epsg)
+        kml_layer.setCrs(crs)
+
+        # Reproject the layer to the desired CRS
+        reprojected_layer = kml_layer.clone()
+        reprojected_layer.setCrs(crs)
+
+        # Save the layer to GeoParquet
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "Parquet"
+        error = QgsVectorFileWriter.writeAsVectorFormatV2(
+            reprojected_layer,
+            output_geoparquet,
+            QgsProject.instance().transformContext(),
+            options
+        )
+
+        if error[0] != QgsVectorFileWriter.NoError:
+            raise RuntimeError(f"Failed to write GeoParquet: {error[1]}")
     except Exception as e:
         raise RuntimeError(f"Failed to convert {input_kml} to GeoParquet: {e}")
 
@@ -36,9 +55,9 @@ def main():
         return
 
     # Input dialog to select the CRS
-    crs, ok = QInputDialog.getText(None, "Select CRS", "Enter EPSG code (e.g., 4326 for WGS84):")
+    crs_epsg, ok = QInputDialog.getText(None, "Select CRS", "Enter EPSG code (e.g., 4326 for WGS84):")
 
-    if not ok or not crs:
+    if not ok or not crs_epsg:
         QMessageBox.warning(None, "No CRS Selected", "You need to select a CRS to continue.")
         return
 
@@ -49,7 +68,7 @@ def main():
         output_file = os.path.join(save_directory, os.path.splitext(base_filename)[0] + '.parquet')
 
         try:
-            convert_kml_to_geoparquet(kml_file, output_file, f"EPSG:{crs}")
+            convert_kml_to_geoparquet(kml_file, output_file, int(crs_epsg))
             messages.append(f"{kml_file} converted to {output_file}.")
         except RuntimeError as e:
             messages.append(f"Error converting {kml_file}: {str(e)}")
@@ -59,3 +78,4 @@ def main():
 
 
 main()
+
