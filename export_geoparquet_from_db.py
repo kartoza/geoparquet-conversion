@@ -1,13 +1,9 @@
 import os
+import geopandas as gpd
 from qgis.PyQt.QtWidgets import QDialog, QFormLayout, QLineEdit, QPushButton, QFileDialog, QVBoxLayout, QApplication
-from qgis.core import (
-    QgsApplication, QgsCoordinateReferenceSystem, QgsVectorLayer,
-    QgsVectorFileWriter, QgsProject, QgsDataSourceUri
-)
+from qgis.PyQt.QtCore import Qt
 from psycopg2 import connect, sql
 import threading
-import tempfile
-import time
 
 class InputDialog(QDialog):
     def __init__(self, parent=None):
@@ -37,6 +33,7 @@ class InputDialog(QDialog):
         self.layout.addRow("Output Directory:", self.output_directory_input)
         self.layout.addWidget(self.browse_button)
         self.layout.addRow("CRS (e.g., EPSG:4326):", self.crs_input)  # Label for CRS input
+        
 
         # Add OK and Cancel buttons
         self.button_box = QVBoxLayout()
@@ -68,6 +65,16 @@ class InputDialog(QDialog):
             'crs': self.crs_input.text()  # Include CRS in returned values
         }
 
+        return {
+            'dbname': self.dbname_input.text(),
+            'user': self.user_input.text(),
+            'password': self.password_input.text(),
+            'host': self.host_input.text(),
+            'port': self.port_input.text(),
+            'schema_name': self.schema_name_input.text(),
+            'output_directory': self.output_directory_input.text()
+        }
+
 # Function to get all tables in the schema
 def get_tables_in_schema(db_params, schema):
     try:
@@ -82,52 +89,27 @@ def get_tables_in_schema(db_params, schema):
         print(f"Error fetching tables: {e}")
         return []
 
-# Function to export each layer to GeoParquet using QGIS built-in functions
+# Function to export each layer to GeoParquet using GeoPandas
 def export_to_geoparquet(db_params, schema, table, output_dir, crs):
     try:
-        # Set up the connection URI
-        uri = QgsDataSourceUri()
-        uri.setConnection(db_params['host'], db_params['port'], db_params['dbname'], db_params['user'], db_params['password'])
-        uri.setDataSource(schema, table, "geom")
-
-        # Load the table as a QgsVectorLayer
-        layer = QgsVectorLayer(uri.uri(False), table, "postgres")
-        if not layer.isValid():
-            raise RuntimeError(f"Failed to load layer {schema}.{table} from database")
-
-        # Reproject the layer to the desired CRS if specified
+        # Create SQL query to fetch data from the table
+        query = f"SELECT * FROM {schema}.{table}"
+        
+        # Create a GeoDataFrame from the SQL query
+        conn_str = f"postgresql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['dbname']}"
+        gdf = gpd.read_postgis(query, conn_str, geom_col='geom')
+        
+        # Convert to the desired CRS
         if crs:
-            target_crs = QgsCoordinateReferenceSystem(crs)
-            layer.setCrs(target_crs)
-        else:
-            layer.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
-
-        # Define options for saving to GeoParquet
-        options = QgsVectorFileWriter.SaveVectorOptions()
-        options.driverName = "Parquet"
-
-        # Define output path
+            gdf = gdf.to_crs(crs)
+        
         output_path = os.path.join(output_dir, f"{table}.parquet")
-
-        # Save the layer to GeoParquet
-        error = QgsVectorFileWriter.writeAsVectorFormatV2(
-            layer,
-            output_path,
-            QgsProject.instance().transformContext(),
-            options
-        )
-        if error[0] != QgsVectorFileWriter.NoError:
-            raise RuntimeError(f"Failed to write GeoParquet: {error[1]}")
-        else:
-            print(f"Successfully exported {schema}.{table} to {output_path}")
-
-        # Remove the layer and introduce a small delay to ensure file handles are released
-        QgsProject.instance().removeMapLayer(layer.id())
-        del layer
-        time.sleep(0.5)
-
+        gdf.to_parquet(output_path)
+        
+        print(f"Successfully exported {schema}.{table} to {output_path}")
     except Exception as e:
         print(f"Exception during export: {e}")
+
 
 def run_export(db_params, schema_name, output_directory, crs):
     # Get all tables in the schema
@@ -136,6 +118,8 @@ def run_export(db_params, schema_name, output_directory, crs):
     # Export each table to GeoParquet
     for table in tables:
         export_to_geoparquet(db_params, schema_name, table, output_directory, crs)
+
+
 
 # Show input dialog
 dialog = InputDialog()

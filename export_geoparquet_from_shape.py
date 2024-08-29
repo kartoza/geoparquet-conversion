@@ -1,6 +1,8 @@
+import geopandas as gpd
 import os
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QInputDialog
-from qgis.core import QgsVectorLayer, QgsCoordinateReferenceSystem, QgsVectorFileWriter
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 def convert_all_shapefiles_to_geoparquet():
     # Open file dialog to select input directory
@@ -41,17 +43,14 @@ def convert_all_shapefiles_to_geoparquet():
         output_file = os.path.join(output_dir, base_name + ".parquet")
 
         try:
-            # Load the shapefile into a QGIS vector layer
-            layer = QgsVectorLayer(shapefile_path, base_name, "ogr")
-            if not layer.isValid():
-                raise Exception("Failed to load layer")
+            # Read the shapefile into a GeoDataFrame
+            gdf = gpd.read_file(shapefile_path)
 
-            # Set the CRS
-            target_crs = QgsCoordinateReferenceSystem(crs)
-            layer.setCrs(target_crs)
+            # Convert the GeoDataFrame to the selected CRS
+            gdf = gdf.to_crs(crs)
 
-            # Save the layer as a GeoParquet file
-            QgsVectorFileWriter.writeAsVectorFormat(layer, output_file, "utf-8", target_crs, "Parquet")
+            # Write the GeoDataFrame to a GeoParquet file
+            gdf.to_parquet(output_file, engine='pyarrow')
 
             messages.append(f"Success: {shapefile_path} -> {output_file}")
         except Exception as e:
